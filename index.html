@@ -67,6 +67,7 @@ textarea{min-height:120px}
 .chip[aria-pressed="true"]{background:var(--chip-on);color:var(--chip-on-ink);border-color:var(--chip-on);font-weight:700}
 .chip.small{min-height:40px;font-size:14px;padding:0 12px}
 .chip.mine{border-style:dashed}
+.mattext{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:8px 10px;border:1px solid #bbb;border-radius:8px;margin:6px 0}
 .chip .ok{color:var(--done);font-weight:700}
 .chip[aria-pressed="true"] .ok{color:var(--chip-on-ink)}
 .chip .n{font-size:12px;opacity:.75}
@@ -584,6 +585,7 @@ details summary{cursor:pointer;font-size:14px;color:var(--muted);min-height:40px
       <li>下の <b>工種</b>・<b>測点</b> の行を押して選ぶ。<b>工程</b> は ◀ ▶ で変える。</li>
       <li><b>工種</b> の ◀ ▶：前・次の工種に変わる（工程は「施工前」に戻る）。</li>
       <li><b>測点</b> の ◀ ▶：番号を振る工種（下地補修など）は番号が1つずつ（N-1-2 → N-2-2）、ほかの工種は階が1つずつ（2階 → 3階）変わる。どちらが変わるかは「測点」の横に出る。</li>
+      <li>補修項目・仕様や工程が一覧に無い時は、選ぶ所の <b>足す</b> の欄に入れる。次から押すだけで選べる。材料の写真は「工程」のタブの <b>使用材料を撮る</b>。</li>
       <li>白い丸（シャッター）で撮る。撮ると工程が1つ進むので、続けて撮れる。</li>
       <li>黒板は指で動かせる。黒板の上を2本指で広げると黒板が大きくなる。黒板の外を2本指で広げるとカメラが拡大する。</li>
     </ol></section>
@@ -617,6 +619,6 @@ details summary{cursor:pointer;font-size:14px;color:var(--muted);min-height:40px
 <div class="busy" id="busy" hidden>少し待ってください…</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=31"></script>
+<script src="app.js?v=32"></script>
 </body>
 </html>
