@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 
-const APP_VER = '33';
+const APP_VER = '34';
 const $ = id => document.getElementById(id);
 function h(tag, props, ...kids){
   const e = document.createElement(tag);
@@ -191,7 +191,15 @@ function save(){ try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e)
 function remember(k){ k = (k || '').trim(); if (!k) return; st.recent = [k].concat(st.recent.filter(x => x !== k)).slice(0, 8); }
 
 /* ---------- 工種・測点・番号 ---------- */
-function kindsFor(koji){ const p = st.projects[(koji || '').trim()]; return (p && Array.isArray(p.kinds) && p.kinds.length) ? p.kinds : DEFAULT_KINDS; }
+// 版34：後から足した工種は、工事ごとに直した工種の一覧（職人さんに渡すリンクで入れた工事も）にも出す。一覧から消した工種は出さない
+const AUTO_ADD = ['G'];
+const autoMissing = p => AUTO_ADD.filter(c => !p.kinds.some(k => k.c === c) && !(p.removed || []).includes(c));
+function kindsFor(koji){
+  const p = st.projects[(koji || '').trim()];
+  if (!(p && Array.isArray(p.kinds) && p.kinds.length)) return DEFAULT_KINDS;
+  const miss = autoMissing(p);
+  return miss.length ? p.kinds.concat(miss.map(c => DEFAULT_KINDS.find(k => k.c === c))) : p.kinds;
+}
 const kindsNow = () => kindsFor(st.koji);
 function kindOf(sel){ const list = kindsNow(); return list.find(k => k.c === (sel || st.sel).kind) || list[0]; }
 function fixSel(){
@@ -1456,7 +1464,9 @@ let kOpen = null;
 function ensureProject(){
   const koji = st.koji.trim();
   if (!st.projects[koji] || !Array.isArray(st.projects[koji].kinds)) st.projects[koji] = {kinds: clone(kindsNow())};
-  return st.projects[koji].kinds;
+  const p = st.projects[koji];
+  autoMissing(p).forEach(c => p.kinds.push(clone(DEFAULT_KINDS.find(k => k.c === c))));   // 版34：画面の並びと同じにしてから直す
+  return p.kinds;
 }
 function openKinds(){
   if (!st.koji.trim()) { openKojiSel('先に工事名を選んでください。工種・部位は工事ごとに直せます。'); return; }
@@ -1492,7 +1502,7 @@ function renderKinds(){
         h('button', {type:'button', class:'mini', 'aria-label':'下へ', text:'▼', disabled: i === list.length - 1, on:{click: () => { move(ensureProject(), i, 1); done(); }}}),
         h('button', {type:'button', class:'kn', on:{click: () => { kOpen = kOpen === k.c ? null : k.c; renderKinds(); }}}, k.n, h('small', {text: '工程 ' + k.steps.length + '・部位 ' + k.parts.length + (k.num ? '・番号あり' : '') + '　押して直す'})),
         h('button', {type:'button', class:'mini x', 'aria-label': k.n + 'を消す', text:'✕', disabled: list.length <= 1, on:{click: () => {
-          if (!confirm('「' + k.n + '」を一覧から消しますか？（撮った写真は消えません）')) return; ensureProject().splice(i, 1); done(); }}}));
+          if (!confirm('「' + k.n + '」を一覧から消しますか？（撮った写真は消えません）')) return; const ks_ = ensureProject(), pr_ = st.projects[st.koji.trim()]; pr_.removed = (pr_.removed || []).filter(c => c !== k.c).concat(k.c); ks_.splice(i, 1); done(); }}}));
       if (kOpen !== k.c) return row;
       const nameIn = h('input', {type:'text', autocomplete:'off', value: k.n, on:{change: e => { const v = e.target.value.trim(); if (v) { arr().n = v; done(); } }}});
       return h('div', {}, row, h('div', {class:'kdetail'},
