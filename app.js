@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 
-const APP_VER = '32';
+const APP_VER = '33';
 const $ = id => document.getElementById(id);
 function h(tag, props, ...kids){
   const e = document.createElement(tag);
@@ -49,7 +49,11 @@ const DEFAULT_KINDS = [
   {c:'H', n:'産廃搬出', steps:['施工前','施工中','施工後'], parts:['廃材置場','積込み','搬出車両','アスベスト含有廃材']},
   // 版30 で足した（本人 10/24。打診調査結果報告書の劣化区分・数え方に合わせた）。番号＝区画（E-3-3＝東面・区画3・3階）
   {c:'D', n:'打診調査', num:true, steps:SURVEY_FLOORS, parts:['外壁タイル','曲がり・マグサ','バルコニー内壁','手摺壁','柱・梁型','共用廊下'],
-   repairs:['下地浮き','陶片浮き','下地・陶片混合浮き','クラック','目地欠損','欠損','エフロレッセンス','シーリング劣化']}
+   repairs:['下地浮き','陶片浮き','下地・陶片混合浮き','クラック','目地欠損','欠損','エフロレッセンス','シーリング劣化']},
+  // 版33 で足した（本人 11/11「写真アプリに項目とか入れといて」）。図面の無い建物の現地調査。写真から現況図と数量を起こす時に要る物を撮る
+  // 面（北面・東面…）は測点で選ぶ＝どの面の写真かが黒板に残る。測った長さ・数は「数量」に入れると黒板と一覧.csv に出る
+  {c:'G', n:'現地調査', steps:['全景','近景','メジャー'], parts:['外壁','屋上パラペット','窓・扉','バルコニー','斜壁・庇','樋','鉄部','階段・廊下','エントランス','屋上','中庭','隣との隙間','道路'],
+   repairs:['各面の全景','外壁の幅の実測','屋上パラペットの実測','高さの実測','タイルの枚数・段数','窓・扉の寸法','斜壁・庇・バルコニー','樋（竪樋・横樋）','鉄部（扉・格子・手摺）','共用部（階段・廊下）','屋上（防水・設備）','劣化（ひび割れ・浮き・漏水跡）','足場・道路の状況']}
 ];
 // 補修項目ごとの工程（会社の標準の工法の順）。補修項目を選ぶと、工程はこの順になる。選んでいない時は工種の工程
 const WET = 'アスベスト含有に伴う湿潤施工';
@@ -85,7 +89,21 @@ const REPAIR_STEPS = {
   'アスファルト防水（トーチ）': ['施工前','既存防水層撤去','ケレン・清掃','プライマー塗布','ルーフィング張り','端末処理','施工後'],
   '塩ビシート防水':          ['施工前','ケレン・清掃','絶縁シート敷き','固定金具取付','シート張り','端末シール','施工後'],
   '防滑性塩ビシート貼（長尺）': ['施工前','既存シート撤去','既存ノンスリップ金物撤去','ケレン','撤去及びケレン清掃状況','下地調整','接着剤塗布','シート張り','端末シール','施工後'],
-  '改修用ドレン設置':        ['施工前','清掃','改修用ドレン取付','防水層との取合い','施工後']
+  '改修用ドレン設置':        ['施工前','清掃','改修用ドレン取付','防水層との取合い','施工後'],
+  // 版33：現地調査の項目ごとの撮る順（私の案）。メジャー・レーザーの写真は数字が読めるように近くで
+  '各面の全景':              ['正面（全体）','左の端','右の端','斜めから'],
+  '外壁の幅の実測':          ['面の全体','メジャー・レーザー'],
+  '屋上パラペットの実測':    ['辺の全体','メジャー・レーザー'],
+  '高さの実測':              ['全体','レーザー'],
+  'タイルの枚数・段数':      ['全体','数える所（近景）'],
+  '窓・扉の寸法':            ['全体','メジャー'],
+  '斜壁・庇・バルコニー':    ['全体','近景','メジャー'],
+  '樋（竪樋・横樋）':        ['全体','近景'],
+  '鉄部（扉・格子・手摺）':  ['全体','近景','メジャー'],
+  '共用部（階段・廊下）':    ['全体','近景','メジャー'],
+  '屋上（防水・設備）':      ['全体','近景'],
+  '劣化（ひび割れ・浮き・漏水跡）': ['遠景','近景'],
+  '足場・道路の状況':        ['道路','隣との隙間','電線・電柱']
 };
 // 工種の項目（下地補修は「補修項目」、ほかは「仕様」）。前に工事ごとに直した工種で項目が無い物は、最初の一覧の項目を使う
 function itemsBase(k){
@@ -103,12 +121,19 @@ const isMat = (k, s) => !!s.mat && !isSurvey(k);
 // 打診調査：項目＝劣化区分、数量を黒板に出す（浮きは枚・クラックは m・ほかは箇所＝打診調査結果表の数え方）。工程の段で階を選び、撮っても階・番号は進めない
 const isSurvey = k => !!k && k.c === 'D';
 const qtyUnit = r => /クラック/.test(r || '') ? 'm' : /浮き/.test(r || '') ? '枚' : '箇所';
+// 現地調査（版33）：測った長さ・数を数量に入れる。長さは m（小数2けた）
+const isGenchi = k => !!k && k.c === 'G';
+const GENCHI_UNIT = {'外壁の幅の実測':'m', '屋上パラペットの実測':'m', '高さの実測':'m', 'タイルの枚数・段数':'枚', '窓・扉の寸法':'m', '斜壁・庇・バルコニー':'m',
+  '樋（竪樋・横樋）':'本', '鉄部（扉・格子・手摺）':'箇所'};
+const qtyUnitK = (k, r) => isSurvey(k) ? qtyUnit(r) : isGenchi(k) ? (GENCHI_UNIT[r] || '') : '';
+const qtyDig = k => isGenchi(k) ? 100 : 10;
 function qtyText(k, s){
-  if (!isSurvey(k) || !s.repair || !(s.qty > 0)) return '';
-  const u = qtyUnit(s.repair);
-  return String(u === 'm' ? Math.round(s.qty * 10) / 10 : Math.round(s.qty)) + u;
+  if (!s.repair || !(s.qty > 0)) return '';
+  const u = qtyUnitK(k, s.repair);
+  if (!u) return '';
+  return String(u === 'm' ? Math.round(s.qty * qtyDig(k)) / qtyDig(k) : Math.round(s.qty)) + u;
 }
-const itemLabel = k => isSurvey(k) ? '劣化区分' : k.num ? '補修項目' : '仕様';
+const itemLabel = k => isSurvey(k) ? '劣化区分' : isGenchi(k) ? '調べる物' : k.num ? '補修項目' : '仕様';
 function stepsOf(k, repair){
   if (isSurvey(k)) return SURVEY_FLOORS;
   const on = !!repair && itemsOf(k).includes(repair);
@@ -800,7 +825,7 @@ const PICK = {
         if (s.repair === v) setItem('');
         changed();
       }),
-      h('p', {class:'note', text: isSurvey(k) ? '劣化区分と数量が黒板に出ます。' : itemLabel(k) + 'を選ぶと、工程がその' + (k.num ? '補修' : '仕様') + 'の順に変わります。足した物は「施工前・施工中・施工後」になり、工程は「工程」のタブで足せます。'}));
+      h('p', {class:'note', text: isSurvey(k) ? '劣化区分と数量が黒板に出ます。' : isGenchi(k) ? '面（北面・東面…）を測点で選んでから撮ると、どの面の写真かが黒板に残ります。調べる物を選ぶと撮る順が変わります。' : itemLabel(k) + 'を選ぶと、工程がその' + (k.num ? '補修' : '仕様') + 'の順に変わります。足した物は「施工前・施工中・施工後」になり、工程は「工程」のタブで足せます。'}));
     if (k.c === 'K') {
       out.push(secth('アスベスト'), h('div', {class:'chips'}, chip('この工事はアスベストあり', asbOn(), () => {
         const name = curSteps()[s.step], koji = st.koji.trim();
@@ -809,9 +834,9 @@ const PICK = {
         changed();
       }, 'small')), h('p', {class:'note', text:'押すと、この工事だけ、Uカット・注入・爆裂・脆弱の工程の施工前の次に「' + WET + '」が入ります。'}));
     }
-    if (isSurvey(k) && s.repair) {
-      const u = qtyUnit(s.repair), big = u === 'm' ? 1 : 10, small = u === 'm' ? 0.1 : 1;
-      const add = d => { s.qty = Math.max(0, Math.round(((s.qty || 0) + d) * 10) / 10); changed(); };
+    if (s.repair && qtyUnitK(k, s.repair)) {
+      const u = qtyUnitK(k, s.repair), big = u === 'm' ? 1 : 10, small = u === 'm' ? 0.1 : 1, dg = qtyDig(k);
+      const add = d => { s.qty = Math.max(0, Math.round(((s.qty || 0) + d) * dg) / dg); changed(); };
       const nb = (t, d, label) => h('button', {type:'button', class:'nb w', 'aria-label': label, text: t, on:{click: () => add(d)}});
       out.push(secth('数量（黒板に出ます）'),
         h('div', {class:'numrow qty'},
@@ -819,7 +844,11 @@ const PICK = {
           h('b', {class:'numview', text: qtyText(k, s) || 'なし'}),
           nb('＋' + small, small, small + u + '増やす'), nb('＋' + big, big, big + u + '増やす'),
           chip('なし', !(s.qty > 0), () => { s.qty = 0; changed(); }, 'small')),
-        h('p', {class:'note', text:'浮きは枚、クラックは m、ほかは箇所で数えます（打診調査結果表と同じ）。曲がり・マグサのタイルは数えたままの枚数を入れてください。'}));
+        isGenchi(k) ? h('div', {class:'inrow'}, h('input', {type:'text', inputmode:'decimal', autocomplete:'off', placeholder: u === 'm' ? '数字で入れる：例 8.93（m）' : '数字で入れる：例 34',
+            value: s.qty > 0 ? String(s.qty) : '', on:{change: e => { const v = parseFloat(String(e.target.value).replace(/[，,]/g, '.').replace(/[^0-9.]/g, '')); s.qty = v > 0 ? Math.round(v * dg) / dg : 0; changed(); },
+            keydown: e => { if (e.key === 'Enter') e.target.blur(); }}})) : null,
+        h('p', {class:'note', text: isGenchi(k) ? '測った長さ（m）・数えた枚数（タイル 45角＝目地込み 50mm）・本数を入れると黒板に出ます。事務所へ送ると一覧の「数量」の列に入り、現況図を起こす時にそのまま使います。'
+          : '浮きは枚、クラックは m、ほかは箇所で数えます（打診調査結果表と同じ）。曲がり・マグサのタイルは数えたままの枚数を入れてください。'}));
     }
     if (k.num) {
       out.push(secth('番号'),
